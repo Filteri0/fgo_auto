@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# 停止時存的除錯截圖
+logs/

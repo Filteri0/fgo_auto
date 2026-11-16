@@ -18,7 +18,8 @@ SPECS: dict[str, tuple[str, tuple[int, int, int, int]]] = {
     "menu_btn":            ("quest_select",   (1135, 635, 1235, 675)),# 右下「MENU」
     # 戰鬥
     "skill_target_title":  ("skill_target",   (565, 170, 715, 212)),  # 「請選擇對象」
-    "battle_speed":        ("card_select",    (1073, 80, 1197, 99)),  # 選卡畫面右上 BATTLE SPEED 字樣
+    "battle_speed":        ("card_select",    (1073, 80, 1197, 99)),  # 選卡畫面右上 BATTLE SPEED 字樣（背景亮時不可靠）
+    "card_back_btn":       ("card_select",    (1150, 665, 1258, 700)),# 選卡畫面右下「返回」按鈕
     "attack_btn":          ("battle_command_w1", (1050, 570, 1235, 640)),  # Attack 字樣（會閃，只拿來點不拿來判斷）
     "battle_menu":         ("battle_command_w1", (1168, 188, 1224, 240)),  # 右上「戰鬥清單」
     "wave_1":              ("battle_command_w1", (880, 12, 900, 36)),
@@ -27,6 +28,31 @@ SPECS: dict[str, tuple[str, tuple[int, int, int, int]]] = {
     # 結算
     "tap_screen":          ("result_exp",     (545, 628, 740, 668)),  # 「請點擊畫面」
     "next_btn":            ("result_drop",    (1045, 620, 1170, 665)),# 「下一步」
+    "cc_close_btn":        ("Extra2",         (25, 28, 68, 52)),      # 紋章詳細頁左上「關閉」
+    "cc_title":            ("Extra2",         (1063, 64, 1247, 86)),  # 紋章詳細頁右上「COMMAND CODE」
+    "continue_btn":        ("continue_sortie", (765, 560, 915, 605)), # 「連續出擊」
+    "continue_close_btn":  ("continue_sortie", (405, 560, 480, 605)), # 「關閉」
+    # 吃蘋果
+    "apple_confirm2_title": ("apple_confirm_silver", (528, 55, 752, 92)),  # 「消耗果實恢復AP」（銀/銅版型）
+    "confirm_ok_btn":      ("apple_confirm",  (790, 545, 890, 585)),  # 「確定」
+    "confirm_cancel_btn":  ("apple_confirm",  (390, 545, 490, 585)),  # 「取消」
+    "ap_close_btn":        ("ap_recover",     (605, 598, 675, 635)),  # AP恢復視窗「關閉」
+    "apple_icon_gold":     ("ap_recover",     (325, 278, 425, 368)),
+    "apple_icon_silver":   ("ap_recover",     (325, 425, 425, 515)),
+    "apple_icon_bronze":   ("ap_recover_scroll", (325, 302, 425, 392)),
+    "apple_icon_copper":   ("ap_recover_scroll", (325, 449, 425, 539)),
+    "apple_name_gold":     ("apple_confirm",  (640, 200, 782, 236)),  # 金：確認視窗藍底「黃金果實」
+    "apple_name_silver":   ("ap_recover_scroll", (458, 158, 570, 188)),  # 銀/銅：列表上的名稱
+    "apple_name_bronze":   ("ap_recover_scroll", (458, 305, 570, 335)),
+    "apple_name_copper":   ("ap_recover_scroll", (458, 452, 570, 482)),
+    # 助戰：VOYOV 的摩根
+    "support_player_voyov":   ("support_select", (240, 195, 362, 230)),
+    "support_servant_morgan": ("support_select", (362, 286, 414, 314)),
+    # 戰鬥
+    "skill_target_close":  ("skill_target",   (1075, 135, 1120, 175)),
+    "master_skill_icon1":  ("master_skill",   (877, 282, 943, 343)),  # 御主技能選單展開後的技能1圖示（換禮裝要重切）
+    "wipe_title":          ("wipe_out",       (462, 205, 825, 235)),  # 「是否使用3劃令咒或1個聖晶石接關？」
+    "retreat_btn":         ("wipe_out",       (295, 305, 365, 340)),  # 「撤退」
 }
 
 

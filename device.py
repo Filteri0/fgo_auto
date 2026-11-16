@@ -23,6 +23,10 @@ class Device:
         self._adb("shell", "input", "tap", str(x), str(y))
         time.sleep(random.uniform(0.3, 0.6))
 
+    def swipe(self, x1, y1, x2, y2, duration_ms=500):
+        self._adb("shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(duration_ms))
+        time.sleep(random.uniform(0.8, 1.2))  # 等列表慣性停下來
+
 if __name__ == "__main__":
     d = Device()
     t = time.time()

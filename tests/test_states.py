@@ -16,11 +16,18 @@ EXPECTED = {
     "battle_command_w3": ("battle_command", 3),
     "skill_target":      ("skill_target", None),
     "card_select":       ("card_select", None),
+    "card_select_2":     ("card_select", None),  # 亮背景關卡：舊的 BATTLE SPEED 判斷會失敗
+    "wipe_out":          ("wipe_out", None),
     "result_bond":       ("result_tap", None),
     "result_exp":        ("result_tap", None),
     "result_drop":       ("result_next", None),
     "result_drop2":      ("result_next", None),
     "continue_sortie":   ("continue_sortie", None),
+    "ap_recover_scroll":    ("ap_recover", None),
+    "apple_confirm_silver": ("apple_confirm", None),
+    "result_bonds":      ("result_tap", None),
+    "Extra":             ("result_tap", None),   # 掉指令紋章
+    "Extra2":            ("cc_detail", None),    # 指令紋章詳細頁
     "test":              (None, None),  # 主選單：不屬於周回流程，應該認不出來
 }
 

@@ -17,25 +17,30 @@ THRESHOLD = 0.85
 class Check:
     template: str
     binary: int | None = None
+    margin: int = 20
 
 
+# 同一個狀態可以出現多次（不同版型），任一組全部符合就算
 STATES: list[tuple[str, list[Check]]] = [
-    ("apple_confirm",   [Check("apple_confirm_title")]),
+    ("apple_confirm",   [Check("apple_confirm_title")]),    # 黃金果實版型
+    ("apple_confirm",   [Check("apple_confirm2_title")]),   # 白銀/青銅/赤銅版型（有數量滑桿）
+    ("cc_detail",       [Check("cc_close_btn"), Check("cc_title")]),  # 指令紋章詳細頁
+    ("wipe_out",        [Check("wipe_title"), Check("retreat_btn")]),  # 全滅「接關」視窗
     ("ap_recover",      [Check("ap_recover_title")]),
     ("continue_sortie", [Check("continue_title")]),
     ("skill_target",    [Check("skill_target_title")]),
-    ("card_select",     [Check("battle_speed", binary=200)]),
+    ("card_select",     [Check("card_back_btn")]),  # 右下「返回」；BATTLE SPEED 在亮背景關卡會認不出
     ("battle_command",  [Check("battle_menu")]),
     ("support_select",  [Check("support_title")]),
     ("party_confirm",   [Check("party_title"), Check("quest_start_btn")]),
     ("result_next",     [Check("next_btn")]),
-    ("result_tap",      [Check("tap_screen")]),
+    ("result_tap",      [Check("tap_screen", margin=60)]),  # 掉紋章時字的位置比較低
     ("quest_select",    [Check("quest_close_btn"), Check("menu_btn")]),
 ]
 
 
 def score(img: np.ndarray, check: Check) -> float:
-    return match(img, check.template, SPECS[check.template][1], binary=check.binary)[0]
+    return match(img, check.template, SPECS[check.template][1], check.margin, binary=check.binary)[0]
 
 
 def detect_state(img: np.ndarray, threshold: float = THRESHOLD) -> str | None:

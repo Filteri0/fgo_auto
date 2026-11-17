@@ -10,6 +10,7 @@ EXPECTED = {
     "ap_recover":        ("ap_recover", None),
     "apple_confirm":     ("apple_confirm", None),
     "support_select":    ("support_select", None),
+    "support_select_rider": ("support_select", None),  # 停在騎職頁籤（模擬器卡頓時發生過）
     "party_confirm":     ("party_confirm", None),
     "battle_command_w1": ("battle_command", 1),
     "battle_command_w2": ("battle_command", 2),
@@ -17,6 +18,8 @@ EXPECTED = {
     "skill_target":      ("skill_target", None),
     "card_select":       ("card_select", None),
     "card_select_2":     ("card_select", None),  # 亮背景關卡：舊的 BATTLE SPEED 判斷會失敗
+    "card_flying":       ("card_select", None),  # 卡片還在飛入（要等落定才出卡）
+    "battle_ui_fading":  ("battle_command", 3),  # 技能列 / Attack 還沒淡入（要等 UI 就緒）
     "wipe_out":          ("wipe_out", None),
     "result_bond":       ("result_tap", None),
     "result_exp":        ("result_tap", None),

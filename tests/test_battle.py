@@ -67,6 +67,21 @@ def test_np_ready(name, ready):
     assert [battle.np_ready(img, s) for s in (1, 2, 3)] == ready
 
 
+@pytest.mark.parametrize("name,ready", [
+    ("battle_command_w1", True), ("battle_command_w2", True), ("battle_command_w3", True),
+    ("master_skill", True),
+    ("battle_ui_fading", False),   # 實機：技能列還沒出現，9 個技能全被誤判成冷卻
+])
+def test_ui_ready(name, ready):
+    assert battle.ui_ready(shot(name)) == ready
+
+
+def test_flying_cards_differ_from_settled():
+    a = battle.card_area_signature(shot("card_flying"))
+    b = battle.card_area_signature(shot("card_select"))
+    assert float(abs(a - b).mean()) > 15
+
+
 def test_master_menu():
     assert battle.master_menu_open(shot("master_skill"))
     assert not battle.master_menu_open(shot("battle_command_w1"))

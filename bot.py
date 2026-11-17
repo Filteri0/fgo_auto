@@ -390,8 +390,10 @@ class Bot:
 
     def _attack(self) -> bool:
         planned = self.turn_np if self.turn_np is not None else ([1, 2, 3] if self.cfg.fallback_np else [])
-        if self.turn_np and not set(self.turn_np) <= self.np_seen and self.np_frames < NP_MIN_FRAMES:
-            return False  # 腳本要開的寶具還沒看到滿：多看幾張（可能剛好拍到箭頭閃暗的瞬間）
+        if not set(planned) <= self.np_seen and self.np_frames < NP_MIN_FRAMES:
+            # 腳本回合要開的、或補刀回合任何一個寶具還沒看到滿：多看幾張
+            # （NP 滿的箭頭會閃，可能剛好都拍到暗的瞬間；實機補刀回合曾因此漏放寶具）
+            return False
         self.np_to_fire = [s for s in planned if s in self.np_seen]
         if self.turn_np is not None:
             for s in self.turn_np:

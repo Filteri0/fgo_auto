@@ -362,6 +362,18 @@ def test_blinking_np_arrow_still_fires(monkeypatch):
     assert d.taps == [(1140, 600)] and bot.np_to_fire == [2]
 
 
+def test_fallback_turn_catches_blinking_np(monkeypatch):
+    """實機：補刀回合 3 號位 NP 滿，但前兩張剛好拍到箭頭暗的瞬間 → 曾經漏放寶具。"""
+    frames = iter([False, False, True] + [False] * 10)
+    monkeypatch.setattr("battle.skill_ready", Skills())
+    monkeypatch.setattr("battle.np_ready", lambda img, s: s == 3 and next(frames))
+    bot, d, clock = make("battle_command_w1", script=SCRIPT)
+    bot.cur_wave = 1
+    bot.scripted_waves.add(1)                  # 補刀回合
+    act(bot, d, clock)
+    assert d.taps == [(1140, 600)] and bot.np_to_fire == [3]
+
+
 def test_waits_extra_frames_for_planned_np(monkeypatch):
     seen = iter([False, False, True] + [False] * 10)  # 第 3 張才拍到亮的箭頭
     monkeypatch.setattr("battle.skill_ready", Skills(cooling={(2, 1), (1, 3)}))

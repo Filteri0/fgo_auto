@@ -30,6 +30,7 @@ SPECS: dict[str, tuple[str, tuple[int, int, int, int]]] = {
     "next_btn":            ("result_drop",    (1045, 620, 1170, 665)),# 「下一步」
     "cc_close_btn":        ("Extra2",         (25, 28, 68, 52)),      # 紋章詳細頁左上「關閉」
     "cc_title":            ("Extra2",         (1063, 64, 1247, 86)),  # 紋章詳細頁右上「COMMAND CODE」
+    "ce_title":            ("ce_detail",      (1163, 62, 1249, 88)),  # 概念禮裝詳細頁右上「概念禮裝」（例如羈絆禮裝）
     "continue_btn":        ("continue_sortie", (765, 560, 915, 605)), # 「連續出擊」
     "continue_close_btn":  ("continue_sortie", (405, 560, 480, 605)), # 「關閉」
     # 吃蘋果
@@ -45,6 +46,13 @@ SPECS: dict[str, tuple[str, tuple[int, int, int, int]]] = {
     "apple_name_silver":   ("ap_recover_scroll", (458, 158, 570, 188)),  # 銀/銅：列表上的名稱
     "apple_name_bronze":   ("ap_recover_scroll", (458, 305, 570, 335)),
     "apple_name_copper":   ("ap_recover_scroll", (458, 452, 570, 482)),
+    # 助戰列表更新
+    "refresh_btn_ready":   ("support_select",   (893, 108, 967, 152)),  # 「列表更新」按鈕（冷卻中會變成倒數數字）
+    "refresh_title":       ("refresh_confirm",  (567, 115, 715, 160)),  # 兩種對話框共用標題「列表更新」
+    "refresh_confirm_text": ("refresh_confirm", (525, 343, 757, 376)),  # 「確定要更新嗎？」
+    "refresh_yes_btn":     ("refresh_confirm",  (805, 545, 875, 585)),  # 「是」
+    "refresh_cooldown_text": ("refresh_cooldown", (365, 310, 915, 345)),  # 「無法連續進行操作。」
+    "refresh_close_btn":   ("refresh_cooldown", (595, 545, 685, 585)),  # 「關閉」
     # 助戰：VOYOV 的摩根
     "support_player_voyov":   ("support_select", (240, 195, 362, 230)),
     "support_servant_morgan": ("support_select", (362, 286, 414, 314)),

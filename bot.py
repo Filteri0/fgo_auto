@@ -20,7 +20,9 @@ APPLE_ZH = {"gold": "黃金果實", "silver": "白銀果實", "bronze": "青銅�
 
 # 固定座標（1280x720）
 ATTACK = (1140, 600)
-SAFE_TAP = (40, 300)              # 認不出畫面時點這裡：左側中間在各畫面都是空白（右側會點到御主技能）
+# 認不出畫面時點這裡：右上「BATTLE n/3」資訊欄，各畫面都沒有按鈕。
+# 換過的位置：(1240,330) 是戰鬥的御主技能按鈕；(40,300) 是禮裝 / 紋章詳細頁的「標記」按鈕。
+SAFE_TAP = (900, 30)
 SKILL_CONFIRM_WAIT = 3.0          # 點技能後等這麼久，技能還亮著才判定沒點到
 UI_READY_FRAMES = 2               # 戰鬥指令 UI 要連續幾張截圖都完整才動作
 NP_MIN_FRAMES = 4                 # NP 滿的「>>」會閃：要開的寶具還沒看到滿，最少看這麼多張再放棄
@@ -36,6 +38,9 @@ CLASS_TABS = {
     "extra": (632, 128), "mix": (698, 128),
 }
 CLASS_TAB_MAX_TRIES = 5
+REFRESH_BTN = (930, 128)          # 支援選擇右上「列表更新」
+REFRESH_SETTLE = 2.0              # 列表更新後等列表載入
+LIST_BOTTOM_DIFF = 3              # 捲動前後列表縮圖差異低於這個 = 已經捲到底
 
 
 def class_tab_selected(img, cls: str) -> bool:
@@ -58,9 +63,10 @@ class Config:
     support_player: str = "support_player_voyov"
     support_servant: str = "support_servant_morgan"
     support_class: str | None = "berserker"  # 進支援選擇先切到這個職階頁籤，None = 不切
+    support_max_refresh: int = 20            # 找不到指定助戰時最多按幾次「列表更新」
     unknown_tap_after: float = 5.0
     unknown_timeout: float = 120.0
-    support_max_scrolls: int = 5
+    support_max_scrolls: int = 15  # 捲到底會自動重刷，這只是保險上限（實機 5 次曾在差一列時就放棄）
     loop_delay: float = 0.5
     action_cooldown: float = 1.5  # 同一個畫面做完動作後，等這麼久才會再動作（避免動畫中重複點）
     # 戰鬥
@@ -96,6 +102,11 @@ class Bot:
         self.last_unknown_tap = 0.0
         self.support_scrolls = 0
         self.class_tab_tries = 0
+        self.support_refreshes = 0        # 這次選助戰按了幾次列表更新（選到人才歸零）
+        self.last_refresh = -1e9
+        self.support_list_sig = None      # 上次捲動前的列表縮圖，用來判斷捲到底
+        self.support_still = 0            # 連續幾次捲動後畫面沒變（2 次才算到底，避免卡頓吃掉滑動）
+        self.refresh_wait_logged = False
         self.apple_scrolls = 0
         self.apple_tries: dict[str, int] = {}
         self.dead_apples: set[str] = set()
@@ -165,6 +176,8 @@ class Bot:
         if old == "support_select":
             self.support_scrolls = 0
             self.class_tab_tries = 0
+            self.support_list_sig = None
+            self.support_still = 0
         if old in ("ap_recover", "apple_confirm") and new not in ("ap_recover", "apple_confirm"):
             self.apple_scrolls = 0
             self.apple_tries.clear()
@@ -272,17 +285,60 @@ class Bot:
             self.support_scrolls = 0  # 切頁籤後列表回到最上面
             self.d.tap(*CLASS_TABS[cls])
             return
+        if self.clock() - self.last_refresh < REFRESH_SETTLE:
+            return False  # 剛按完列表更新，等列表載入
         for _, (px, py) in match_all(self.img, self.cfg.support_player, SUPPORT_LIST):
             cx, cy = px + SUPPORT_SERVANT_OFFSET[0], py + SUPPORT_SERVANT_OFFSET[1]
+            if cy + 14 > self.img.shape[0] - 5:
+                log("指定玩家在列表最下面，從者那行被切掉，再往下捲一點")
+                continue
             if match(self.img, self.cfg.support_servant, (cx - 26, cy - 14, cx + 26, cy + 14), 10)[0] >= 0.85:
-                log("選擇助戰")
+                log("選擇助戰" + (f"（列表更新了 {self.support_refreshes} 次）" if self.support_refreshes else ""))
                 self.d.tap(cx, cy)  # 點從者名字（點頭像會打開詳細資訊）
+                self.support_refreshes = 0
                 return
-        if self.support_scrolls >= self.cfg.support_max_scrolls:
+
+        # 找不到：先往下捲；捲到底（畫面沒變）或捲夠多次就按「列表更新」重刷
+        sig = self._support_list_sig()
+        unchanged = (self.support_list_sig is not None
+                     and float(abs(sig - self.support_list_sig).mean()) < LIST_BOTTOM_DIFF)
+        self.support_still = self.support_still + 1 if unchanged else 0
+        at_bottom = self.support_still >= 2
+        if not at_bottom and self.support_scrolls < self.cfg.support_max_scrolls:
+            self.support_scrolls += 1
+            self.support_list_sig = sig
+            self.d.swipe(640, 600, 640, 250)
+            return
+        return self._refresh_support_list()
+
+    def _support_list_sig(self):
+        x1, y1, x2, y2 = SUPPORT_LIST
+        gray = cv2.cvtColor(self.img[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)
+        return cv2.resize(gray, (60, 55), interpolation=cv2.INTER_AREA).astype("int16")
+
+    def _refresh_support_list(self):
+        if self.support_refreshes >= self.cfg.support_max_refresh:
             path = self._save_debug("support")
-            raise Stop(f"捲了 {self.support_scrolls} 次都找不到指定助戰，截圖：{path}")
-        self.support_scrolls += 1
-        self.d.swipe(640, 600, 640, 250)
+            raise Stop(f"列表更新了 {self.support_refreshes} 次都找不到指定助戰，截圖：{path}")
+        if match(self.img, "refresh_btn_ready", SPECS["refresh_btn_ready"][1])[0] < 0.85:
+            if not self.refresh_wait_logged:
+                log("找不到指定助戰，等「列表更新」冷卻")
+                self.refresh_wait_logged = True
+            return False  # 按鈕還在倒數，先等
+        self.support_refreshes += 1
+        self.refresh_wait_logged = False
+        log(f"找不到指定助戰，列表更新（第 {self.support_refreshes} 次）")
+        self.d.tap(*REFRESH_BTN)
+
+    def on_refresh_confirm(self):
+        self._tap_template("refresh_yes_btn")
+        self.last_refresh = self.clock()
+        self.support_scrolls = 0
+        self.support_list_sig = None
+        self.support_still = 0
+
+    def on_refresh_cooldown(self):
+        self._tap_template("refresh_close_btn")  # 冷卻中：關掉提示，回到列表等冷卻
 
     def on_party_confirm(self):
         self._tap_template("quest_start_btn")
@@ -436,7 +492,8 @@ class Bot:
         # 冷卻後還停在選卡畫面：大概寶具卡沒選到（NP 判斷錯），補點一張還沒點過的卡
         rest = [i for i in self.card_order if i not in self.cards_clicked]
         if rest:
-            log(f"選卡畫面還在，補點卡{rest[0] + 1}")
+            path = self._save_debug("card_topup")  # 留證據：通常是寶具卡沒選到（NP 誤判？）
+            log(f"選卡畫面還在，補點卡{rest[0] + 1}（截圖：{path.name}）")
             self.d.tap(*CARD_POS[rest[0]])
             self.cards_clicked.add(rest[0])
 

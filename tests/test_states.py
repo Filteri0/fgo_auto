@@ -11,6 +11,9 @@ EXPECTED = {
     "apple_confirm":     ("apple_confirm", None),
     "support_select":    ("support_select", None),
     "support_select_rider": ("support_select", None),  # 停在騎職頁籤（模擬器卡頓時發生過）
+    "support_select_no_voyov": ("support_select", None),  # 剛列表更新完（按鈕在倒數），沒有 VOYOV
+    "refresh_confirm":   ("refresh_confirm", None),   # 列表更新：確定要更新嗎？
+    "refresh_cooldown":  ("refresh_cooldown", None),  # 列表更新：無法連續進行操作
     "party_confirm":     ("party_confirm", None),
     "battle_command_w1": ("battle_command", 1),
     "battle_command_w2": ("battle_command", 2),
@@ -31,6 +34,7 @@ EXPECTED = {
     "result_bonds":      ("result_tap", None),
     "Extra":             ("result_tap", None),   # 掉指令紋章
     "Extra2":            ("cc_detail", None),    # 指令紋章詳細頁
+    "ce_detail":         ("cc_detail", None),    # 概念禮裝詳細頁（實機掉羈絆禮裝「回歸」時停在這裡）
     "test":              (None, None),  # 主選單：不屬於周回流程，應該認不出來
 }
 

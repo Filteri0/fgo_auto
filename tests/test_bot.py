@@ -103,8 +103,9 @@ def test_apple_confirm_silver_ok():
 
 
 @pytest.mark.parametrize("screen,apples", [("apple_confirm", ["silver"]), ("apple_confirm_silver", ["bronze"])])
-def test_apple_confirm_wrong_apple_cancels(screen, apples):
+def test_apple_confirm_wrong_apple_cancels(screen, apples, monkeypatch, tmp_path):
     bot, d, _ = make(screen, apples=apples, max_apples=5)
+    monkeypatch.setattr(bot, "_save_debug", lambda tag: tmp_path / f"{tag}.png")  # 別寫進真的 logs/
     with pytest.raises(Stop):
         bot.step()
     assert near(d.taps[0], 440, 570, tol=30) and bot.apples_used == 0
@@ -151,6 +152,71 @@ def test_support_gives_up_if_tab_never_switches(tmp_path, monkeypatch):
             bot.step()
             clock.t += 2
     assert d.taps.count((565, 128)) == 5 and d.swipes == []
+
+
+def test_support_missing_scrolls_then_refreshes_at_bottom(monkeypatch):
+    """VOYOV 不在列表上 → 往下捲；連續兩次捲動畫面都沒變（到底了）就按列表更新，不用捲滿上限。"""
+    monkeypatch.setattr("bot.class_tab_selected", lambda img, cls: True)
+    bot, d, clock = make("support_select_rider")   # 列表上沒有 VOYOV，列表更新按鈕可按
+    bot.step()
+    assert len(d.swipes) == 1 and d.taps == []
+    clock.t += 2
+    bot.step()                                      # 畫面沒變一次：可能只是卡頓吃掉滑動，再捲一次
+    assert len(d.swipes) == 2 and d.taps == []
+    clock.t += 2
+    bot.step()                                      # 連續兩次沒變 = 真的到底
+    assert len(d.swipes) == 2 and d.taps == [(930, 128)]
+
+
+def test_support_partially_visible_row_keeps_scrolling(monkeypatch):
+    """實機：VOYOV 的摩根在最下面只露出名字，從者那行被切掉 → 不能就此放棄，要繼續捲。"""
+    from vision import imread, ROOT
+    monkeypatch.setattr("bot.class_tab_selected", lambda img, cls: True)
+    bot, d, clock = make("support_select_cutoff")
+    bot.step()
+    assert d.taps == [] and len(d.swipes) == 1      # 沒有亂點，也沒有去重刷
+
+
+def test_support_waits_for_refresh_cooldown(monkeypatch):
+    monkeypatch.setattr("bot.class_tab_selected", lambda img, cls: True)
+    bot, d, clock = make("support_select_no_voyov")  # 列表更新按鈕還在倒數
+    for _ in range(6):
+        bot.step()
+        clock.t += 2
+    assert d.taps == []                             # 不會在冷卻中去按
+
+
+def test_refresh_confirm_taps_yes_then_waits_for_list():
+    bot, d, clock = make("refresh_confirm")
+    bot.step()
+    assert near(d.taps[0], 840, 565)                # 是
+    d.screen = "support_select"
+    clock.t += 0.5
+    bot.step()
+    assert len(d.taps) == 1                         # 剛更新完，等列表載入
+    clock.t += 2
+    bot.step()
+    assert near(d.taps[1], 388, 300)                # 找到 VOYOV 的摩根
+
+
+def test_refresh_cooldown_closes_dialog():
+    bot, d, _ = make("refresh_cooldown")
+    bot.step()
+    assert near(d.taps[0], 640, 565)                # 關閉
+
+
+def test_support_gives_up_after_max_refreshes(monkeypatch, tmp_path):
+    monkeypatch.setattr("bot.class_tab_selected", lambda img, cls: True)
+    bot, d, clock = make("support_select_rider", support_max_refresh=2)
+    monkeypatch.setattr(bot, "_save_debug", lambda tag: tmp_path / f"{tag}.png")
+    with pytest.raises(Stop):
+        for _ in range(20):
+            bot.step()                              # 畫面一直沒有 VOYOV
+            if d.taps and d.taps[-1] == (930, 128):
+                bot.last_refresh = clock.t          # 模擬按了「是」
+                bot.support_list_sig = None
+            clock.t += 3
+    assert d.taps.count((930, 128)) == 2
 
 
 def test_support_without_class_tab():
@@ -231,8 +297,9 @@ def test_card_select_np_first():
     assert d.taps == [(645, 200), (385, 500), (640, 500)]  # 寶具 + 兩張紅卡
 
 
-def test_card_select_tops_up_if_still_there():
+def test_card_select_tops_up_if_still_there(monkeypatch, tmp_path):
     bot, d, clock = make("card_select")
+    monkeypatch.setattr(bot, "_save_debug", lambda tag: tmp_path / f"{tag}.png")
     bot.np_to_fire = [1]       # 假設判斷錯，寶具卡其實點不到
     act(bot, d, clock)
     clock.t += 2
@@ -404,10 +471,19 @@ def test_result_tap_on_text_not_card():
     assert near(d.taps[0], 640, 690, tol=30)
 
 
-def test_cc_detail_closes():
-    bot, d, _ = make("Extra2")
+@pytest.mark.parametrize("screen", ["Extra2", "ce_detail"])  # 指令紋章 / 羈絆禮裝的詳細頁
+def test_detail_page_closes(screen):
+    bot, d, _ = make(screen)
     bot.step()
     assert near(d.taps[0], 46, 40)
+
+
+def test_safe_tap_avoids_detail_page_buttons():
+    """實機：舊的安全位置 (40,300) 在詳細頁上是「標記」按鈕。"""
+    from bot import SAFE_TAP
+    x, y = SAFE_TAP
+    assert not (0 <= x <= 70 and 140 <= y <= 330)       # 鎖定 / 標記
+    assert not (1130 <= x <= 1260 and 250 <= y <= 370)  # 戰鬥的御主技能按鈕
 
 
 def test_continue_sortie_continues():
@@ -438,7 +514,7 @@ def test_unknown_taps_then_times_out(tmp_path, monkeypatch):
     bot.step()
     clock.t += 6
     bot.step()
-    assert d.taps == [(40, 300)]
+    assert d.taps == [(900, 30)]
     clock.t += 200
     with pytest.raises(Stop):
         bot.step()

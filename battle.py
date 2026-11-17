@@ -78,6 +78,23 @@ def parse_script(waves: dict) -> dict[int, list[Action]]:
 
 
 # ---------- 畫面判斷 ----------
+def ui_ready(img) -> bool:
+    """戰鬥指令 UI 是否完整出現：Attack 按鈕藍色約 42%，淡入中 / 技能動畫中為 0。
+
+    「戰鬥清單」比技能列和 Attack 早出現，只看它的話會在技能列還沒淡入時就判斷，
+    把所有技能都誤判成冷卻中。
+    """
+    hsv = cv2.cvtColor(img[545:655, 1065:1225], cv2.COLOR_BGR2HSV)
+    h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    return float(((h >= 90) & (h <= 110) & (s > 150) & (v > 200)).mean()) > 0.2
+
+
+def card_area_signature(img) -> np.ndarray:
+    """指令卡區域的縮圖，用來判斷卡片是否已經落定（連續兩張差不多 = 動畫結束）。"""
+    gray = cv2.cvtColor(img[380:640, 0:1280], cv2.COLOR_BGR2GRAY)
+    return cv2.resize(gray, (160, 32), interpolation=cv2.INTER_AREA).astype(np.int16)
+
+
 def skill_ready(img, servant: int, index: int) -> bool:
     x, y = SKILL_POS[servant][index]
     v = cv2.cvtColor(img[y - 25:y + 25, x - 25:x + 25], cv2.COLOR_BGR2HSV)[..., 2]

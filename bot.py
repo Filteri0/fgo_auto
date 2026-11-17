@@ -7,6 +7,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import cv2
+
 import battle
 from battle import Action, CARD_POS, MASTER_BTN, MASTER_SKILL_POS, NP_CARD_POS, SKILL_POS, TARGET_POS
 from states import detect_state, detect_wave
@@ -20,6 +22,10 @@ APPLE_ZH = {"gold": "黃金果實", "silver": "白銀果實", "bronze": "青銅�
 ATTACK = (1140, 600)
 SAFE_TAP = (40, 300)              # 認不出畫面時點這裡：左側中間在各畫面都是空白（右側會點到御主技能）
 SKILL_CONFIRM_WAIT = 3.0          # 點技能後等這麼久，技能還亮著才判定沒點到
+UI_READY_FRAMES = 2               # 戰鬥指令 UI 要連續幾張截圖都完整才動作
+NP_MIN_FRAMES = 4                 # NP 滿的「>>」會閃：要開的寶具還沒看到滿，最少看這麼多張再放棄
+CARD_STABLE_DIFF = 15             # 選卡區連續兩張縮圖的平均差異低於這個 = 卡片落定
+CARD_MAX_WAIT = 4.0               # 卡片一直判斷不穩定時，最多等這麼久就照最新的卡色出卡
 APPLE_LIST = (300, 100, 440, 575)  # AP恢復視窗裡果實圖示所在的直條
 SUPPORT_LIST = (230, 170, 830, 720)
 SUPPORT_SERVANT_OFFSET = (87, 88)  # 從玩家名字中心到從者名字中心的偏移
@@ -29,6 +35,15 @@ CLASS_TABS = {
     "rider": (362, 128), "caster": (430, 128), "assassin": (497, 128), "berserker": (565, 128),
     "extra": (632, 128), "mix": (698, 128),
 }
+CLASS_TAB_MAX_TRIES = 5
+
+
+def class_tab_selected(img, cls: str) -> bool:
+    """被選中的職階頁籤有一圈藍色亮框：藍色像素約 17~20%，沒選中的 <= 2%。"""
+    x, _ = CLASS_TABS[cls]
+    hsv = cv2.cvtColor(img[100:158, x - 32:x + 32], cv2.COLOR_BGR2HSV)
+    h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    return float(((h >= 95) & (h <= 125) & (s > 120) & (v > 150)).mean()) > 0.08
 
 
 class Stop(Exception):
@@ -80,6 +95,7 @@ class Bot:
         self.unknown_since: float | None = None
         self.last_unknown_tap = 0.0
         self.support_scrolls = 0
+        self.class_tab_tries = 0
         self.apple_scrolls = 0
         self.apple_tries: dict[str, int] = {}
         self.dead_apples: set[str] = set()
@@ -100,8 +116,16 @@ class Bot:
         self.master_tapped = False
         self.turn_np: list[int] | None = None   # 腳本回合要放的寶具；None = 補刀回合
         self.np_to_fire: list[int] = []         # 按 Attack 前判斷好、要在選卡時點的寶具
-        self.card_order: list[int] = []
+        self.np_seen: set[int] = set()          # 這回合任何一張就緒截圖看到 NP 滿的人
+        self.np_frames = 0                      # 這回合看過幾張就緒截圖
+        self.ui_ready_streak = 0
+        self._reset_cards()
+
+    def _reset_cards(self):
+        self.card_order: list[int] | None = None   # None = 這次選卡畫面還沒出卡
         self.cards_clicked: set[int] = set()
+        self.card_prev = None                       # (卡色, 縮圖) 上一張
+        self.card_wait_start = self.clock()
 
     # ---------- 主迴圈 ----------
     def run(self) -> None:
@@ -132,13 +156,15 @@ class Bot:
             self.last_state = state
         elif now - self.last_action < self.cfg.action_cooldown:
             return state  # 剛點過，畫面可能還在動畫，先不要重複點
-        getattr(self, f"on_{state}")()
-        self.last_action = now
+        acted = getattr(self, f"on_{state}")()
+        if acted is not False:  # 回傳 False = 畫面還沒準備好、這輪只是在等，不算動作
+            self.last_action = now
         return state
 
     def _on_leave(self, old, new):
         if old == "support_select":
             self.support_scrolls = 0
+            self.class_tab_tries = 0
         if old in ("ap_recover", "apple_confirm") and new not in ("ap_recover", "apple_confirm"):
             self.apple_scrolls = 0
             self.apple_tries.clear()
@@ -146,6 +172,10 @@ class Bot:
             self.waiting_hint_shown = False
         if new in ("support_select", "party_confirm", "continue_sortie"):
             self._reset_battle()
+        if new == "card_select":
+            self._reset_cards()
+        if old == "battle_command":
+            self.ui_ready_streak = 0
 
     def _on_unknown(self):
         now = self.clock()
@@ -232,8 +262,15 @@ class Bot:
             raise Stop(f"確認視窗的道具不是允許的果實（辨識={apple} {scores[apple]:.2f}），已取消。截圖：{path}")
 
     def on_support_select(self):
-        if self.entered and self.cfg.support_class:
-            self.d.tap(*CLASS_TABS[self.cfg.support_class])  # 先切職階頁籤，冷卻後再找人
+        cls = self.cfg.support_class
+        if cls and not class_tab_selected(self.img, cls):
+            # 頁籤沒切成功（例如模擬器卡頓吃掉點擊）就再點，確認切好了才找人
+            if self.class_tab_tries >= CLASS_TAB_MAX_TRIES:
+                path = self._save_debug("class_tab")
+                raise Stop(f"點了 {self.class_tab_tries} 次都切不到 {cls} 頁籤，截圖：{path}")
+            self.class_tab_tries += 1
+            self.support_scrolls = 0  # 切頁籤後列表回到最上面
+            self.d.tap(*CLASS_TABS[cls])
             return
         for _, (px, py) in match_all(self.img, self.cfg.support_player, SUPPORT_LIST):
             cx, cy = px + SUPPORT_SERVANT_OFFSET[0], py + SUPPORT_SERVANT_OFFSET[1]
@@ -252,6 +289,17 @@ class Bot:
 
     # ---------- 戰鬥 ----------
     def on_battle_command(self):
+        # 技能列和 Attack 完整出現（連續幾張）才判斷，避免淡入 / 技能動畫中把技能誤判成冷卻
+        if not battle.ui_ready(self.img):
+            self.ui_ready_streak = 0
+            return False
+        self.ui_ready_streak += 1
+        # NP 滿的箭頭會閃爍，單張可能拍到暗的瞬間：同一回合 NP 只增不減，任一張看到滿就算
+        self.np_seen.update(s for s in (1, 2, 3) if battle.np_ready(self.img, s))
+        self.np_frames += 1
+        if self.ui_ready_streak < UI_READY_FRAMES:
+            return False
+
         wave = detect_wave(self.img) or self.cur_wave or 1
         if wave != self.cur_wave:
             if self.cur_wave is not None and wave < self.cur_wave:
@@ -261,20 +309,28 @@ class Bot:
             self.queue = None
             self.turn_np = None
         self.last_wave = wave
-        if self._run_script():
-            return
-        self._attack()
+        result = self._run_script()
+        if result is None:
+            result = self._attack()
+        self.ui_ready_streak = 0  # 動作（或確認完一個動作）後，等 UI 重新穩定再判斷下一步
+        return result is not False
 
-    def _run_script(self) -> bool:
-        """做本波腳本的下一個動作。回傳 True 代表這一輪已經動作（或在等動作生效）。"""
+    # _run_script 回傳：True = 這輪點了東西；False = 這輪只是在等；None = 腳本做完，該按 Attack
+
+    def _run_script(self) -> bool | None:
+        """做本波腳本的下一個動作。"""
         wave = self.cur_wave
         if wave in self.scripted_waves or wave not in self.cfg.script:
-            return False
+            return None
         if self.queue is None:
             self.queue = [a for a in self.cfg.script[wave] if a.kind != "np"]
             log(f"第 {wave} 波腳本：{' '.join(map(str, self.cfg.script[wave]))}")
-        if self.pending is not None and self._check_pending():
-            return True
+        if self.pending is not None:
+            r = self._check_pending()
+            if r is not None:
+                return r
+            # 上一個動作剛確認完成：這張截圖可能還帶著施放動畫，等新的穩定畫面再判斷下一個技能
+            return False
         while self.queue:
             a = self.queue.pop(0)
             if a.kind == "skill":
@@ -289,30 +345,31 @@ class Bot:
             return True
         self.scripted_waves.add(wave)
         self.turn_np = [a.servant for a in self.cfg.script[wave] if a.kind == "np"]
-        return False
+        return None
 
     def _start(self, a: Action):
         self.pending, self.pending_time, self.pending_tries, self.master_tapped = a, self.clock(), 1, False
 
-    def _retry_or_give_up(self, pos) -> bool:
+    def _retry_or_give_up(self, pos) -> bool | None:
         if self.clock() - self.pending_time < SKILL_CONFIRM_WAIT:
-            return True  # 還在等動畫
+            return False  # 還在等動畫
         if self.pending_tries >= 3:
             log(f"{self.pending} 點了 3 次都沒反應，放棄")
             self.pending = None
-            return False
+            return None
         self.pending_tries += 1
         self.pending_time = self.clock()
+        log(f"{self.pending} 好像沒點到，重點第 {self.pending_tries} 次")
         self.d.tap(*pos)
         return True
 
-    def _check_pending(self) -> bool:
-        """確認上一個動作生效了沒。回傳 True 代表這一輪要繼續等或已重點。"""
+    def _check_pending(self) -> bool | None:
+        """確認上一個動作生效了沒。回傳 None = 已完成（或放棄）；False = 還在等；True = 這輪點了東西。"""
         a = self.pending
         if a.kind == "skill":
             if not battle.skill_ready(self.img, a.servant, a.index):
-                self.pending = None  # 圖示變暗 = 已施放
-                return False
+                self.pending = None  # UI 完整時圖示變暗 = 已施放
+                return None
             return self._retry_or_give_up(SKILL_POS[a.servant][a.index])
 
         # 御主技能
@@ -328,17 +385,21 @@ class Bot:
             return True
         if self.master_tapped:
             self.pending = None  # 點過技能、選單已收起 = 已施放
-            return False
+            return None
         return self._retry_or_give_up(MASTER_BTN)  # 選單沒打開，重點御主技能按鈕
 
-    def _attack(self):
+    def _attack(self) -> bool:
         planned = self.turn_np if self.turn_np is not None else ([1, 2, 3] if self.cfg.fallback_np else [])
-        self.np_to_fire = [s for s in planned if battle.np_ready(self.img, s)]
+        if self.turn_np and not set(self.turn_np) <= self.np_seen and self.np_frames < NP_MIN_FRAMES:
+            return False  # 腳本要開的寶具還沒看到滿：多看幾張（可能剛好拍到箭頭閃暗的瞬間）
+        self.np_to_fire = [s for s in planned if s in self.np_seen]
         if self.turn_np is not None:
             for s in self.turn_np:
                 if s not in self.np_to_fire:
                     log(f"np{s} 的 NP 沒滿，這回合改打普通卡")
         self.d.tap(*ATTACK)
+        self.np_seen, self.np_frames = set(), 0  # 下一回合重新累積
+        return True
 
     def _default_target(self) -> int:
         if self.pending is not None and self.pending.target:
@@ -347,9 +408,18 @@ class Bot:
         return nps[0] if nps else 1  # 沒指定就給這一波要開寶具的人
 
     def on_card_select(self):
-        if self.entered:
-            self.cards_clicked = set()
-            self.card_order = battle.rank_cards(battle.card_colors(self.img), self.cfg.card_priority)
+        if self.card_order is None:
+            # 卡片剛出現時還在飛入 / 翻轉，卡色會讀錯：連續兩張卡色相同、畫面幾乎不動才出卡
+            colors = battle.card_colors(self.img)
+            sig = battle.card_area_signature(self.img)
+            prev, self.card_prev = self.card_prev, (colors, sig)
+            stable = (prev is not None and prev[0] == colors
+                      and float(abs(prev[1] - sig).mean()) < CARD_STABLE_DIFF)
+            if not stable:
+                if self.clock() - self.card_wait_start < CARD_MAX_WAIT:
+                    return False
+                log("卡片一直沒有穩定，照目前的卡色出卡")
+            self.card_order = battle.rank_cards(colors, self.cfg.card_priority)
             nps = self.np_to_fire[:3]
             for s in nps:  # 寶具放前面
                 self.d.tap(*NP_CARD_POS[s])

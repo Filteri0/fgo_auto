@@ -25,7 +25,11 @@ STATES: list[tuple[str, list[Check]]] = [
     ("apple_confirm",   [Check("apple_confirm_title")]),    # 黃金果實版型
     ("apple_confirm",   [Check("apple_confirm2_title")]),   # 白銀/青銅/赤銅版型（有數量滑桿）
     ("cc_detail",       [Check("cc_close_btn"), Check("cc_title")]),  # 指令紋章詳細頁
+    ("cc_detail",       [Check("cc_close_btn"), Check("ce_title")]),  # 概念禮裝詳細頁（掉羈絆禮裝時出現）
     ("wipe_out",        [Check("wipe_title"), Check("retreat_btn")]),  # 全滅「接關」視窗
+    # 列表更新的兩種對話框：疊在支援選擇上，右上「支援選擇」還看得到，要排在 support_select 前面
+    ("refresh_confirm", [Check("refresh_title"), Check("refresh_confirm_text")]),   # 確定要更新嗎？
+    ("refresh_cooldown", [Check("refresh_title"), Check("refresh_cooldown_text")]), # 無法連續進行操作
     ("ap_recover",      [Check("ap_recover_title")]),
     ("continue_sortie", [Check("continue_title")]),
     ("skill_target",    [Check("skill_target_title")]),

@@ -2,9 +2,14 @@
 import pytest
 
 from bot import Bot, Config, Stop
+from profile_store import Profile, profile_dir
+from support import SupportSpec
 from vision import ROOT, imread
 
 _imgs = {}
+# 預設設定組的助戰條件：VOYOV 的摩根、狂職頁籤
+DEFAULT_SUPPORT = Profile.load(profile_dir("default")).support
+MORGAN_ROW_TAP = (426, 301)  # support_select 第一列（VOYOV 的摩根）的點擊位置
 
 
 def shot(name):
@@ -39,7 +44,11 @@ class FakeClock:
 
 def make(screen, **cfg):
     d, clock = FakeDevice(screen), FakeClock()
-    return Bot(d, Config(**cfg), clock=clock, sleep=lambda s: None), d, clock
+    cfg.setdefault("support", DEFAULT_SUPPORT)
+    logs = []
+    bot = Bot(d, Config(**cfg), clock=clock, sleep=lambda s: None, logger=logs.append)
+    bot.logs = logs
+    return bot, d, clock
 
 
 def near(tap, x, y, tol=25):
@@ -125,7 +134,7 @@ def test_apple_confirm_not_double_counted():
 def test_support_already_on_berserker_picks_voyov_morgan():
     bot, d, _ = make("support_select")  # 狂職頁籤已經是選中的
     bot.step()
-    assert near(d.taps[0], 388, 300)    # 第一列摩根，不是第二列的婁希
+    assert d.taps[0] == MORGAN_ROW_TAP    # 第一列摩根，不是第二列的婁希
 
 
 def test_support_switches_class_tab_and_verifies():
@@ -141,7 +150,7 @@ def test_support_switches_class_tab_and_verifies():
     d.screen = "support_select"         # 這次切成功了
     clock.t += 2
     bot.step()
-    assert near(d.taps[2], 388, 300)
+    assert d.taps[2] == MORGAN_ROW_TAP
 
 
 def test_support_gives_up_if_tab_never_switches(tmp_path, monkeypatch):
@@ -196,7 +205,7 @@ def test_refresh_confirm_taps_yes_then_waits_for_list():
     assert len(d.taps) == 1                         # 剛更新完，等列表載入
     clock.t += 2
     bot.step()
-    assert near(d.taps[1], 388, 300)                # 找到 VOYOV 的摩根
+    assert d.taps[1] == MORGAN_ROW_TAP                # 找到 VOYOV 的摩根
 
 
 def test_refresh_cooldown_closes_dialog():
@@ -220,9 +229,9 @@ def test_support_gives_up_after_max_refreshes(monkeypatch, tmp_path):
 
 
 def test_support_without_class_tab():
-    bot, d, _ = make("support_select", support_class=None)
+    bot, d, _ = make("support_select", support=SupportSpec(DEFAULT_SUPPORT.templates, class_tab=None))
     bot.step()
-    assert near(d.taps[0], 388, 300)
+    assert d.taps[0] == MORGAN_ROW_TAP
 
 
 # ---------- 全滅 ----------

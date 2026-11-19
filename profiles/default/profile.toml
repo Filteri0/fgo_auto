@@ -1,0 +1,25 @@
+name = "預設（VOYOV 的摩根）"
+
+[farm]
+runs = 0            # 0 = 無限
+apples = []   # 可以吃的果實與順序；聖晶石永遠不會吃
+max_apples = 10
+
+[support]
+class_tab = "berserker"   # 職階頁籤，空字串 = 不切換
+mlb = false              # 禮裝要滿破
+max_refresh = 20
+
+[support.fields]   # 有列出的欄位才會比對，圖在同一個資料夾
+player = "support_player.png"
+servant = "support_servant.png"
+
+[battle]
+card_priority = "BAQ"
+fallback_np = true
+party = ["迪亞馬特", "摩根", "摩根（助戰）"]   # 1~3 號位的名字（只用來顯示）
+
+[battle.waves]   # s2-1 = 2號位技能1；s2-3>1 = 目標1號位；m1 = 御主技能1；np2 = 2號位寶具
+1 = ["s2-1", "s1-3", "m1", "np2"]
+2 = ["s3-1", "s3-3", "s2-3", "np3"]
+3 = ["s1-1", "s1-2", "s1-3", "np1"]

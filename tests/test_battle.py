@@ -34,10 +34,9 @@ def test_parse_script_requires_np_last():
         parse_script({"1": ["np2", "s1-1"]})
 
 
-def test_parse_script_repo_file():
-    import tomllib
-    with open(ROOT / "battle.toml", "rb") as f:
-        script = parse_script(tomllib.load(f)["waves"])
+def test_default_profile_script():
+    from profile_store import Profile, profile_dir
+    script = Profile.load(profile_dir("default")).to_config().script
     assert [str(a) for a in script[1]] == ["s2-1", "s1-3", "m1", "np2"]
     assert set(script) == {1, 2, 3}
 

@@ -16,6 +16,7 @@ CLASS_CHOICES = [("不切換頁籤", None), ("全職階", "all"), ("劍 Saber", 
                  ("殺 Assassin", "assassin"), ("狂 Berserker", "berserker"), ("特殊職階", "extra"),
                  ("混合 MIX", "mix")]
 ROW_X = (-228, 929)  # 一列的左右緣（相對「從者」標籤中心）
+CE_EMPTY = "點截圖上的一列"
 
 
 class SupportTab(QWidget):
@@ -71,7 +72,7 @@ class SupportTab(QWidget):
 
         self.cb_player = QCheckBox("玩家名稱")
         self.player = QLineEdit()
-        self.player.setPlaceholderText("例如 VOYOV")
+        self.player.setPlaceholderText("例如 Filteri")
         self.cb_servant = QCheckBox("從者")
         self.servant = QLineEdit()
         self.servant.setPlaceholderText("例如 摩根")
@@ -84,7 +85,9 @@ class SupportTab(QWidget):
         self.np.setRange(1, 5)
         self.np.setPrefix("Lv. ")
         self.cb_ce = QCheckBox("禮裝")
+        self.cb_ce.setToolTip("禮裝圖要從截圖上點選的那一列切下來")
         self.ce_thumb = Thumb(170, 34)
+        self.ce_thumb.clear_thumb(CE_EMPTY)
         self.cb_mlb = QCheckBox("禮裝滿破")
         self.mlb_state = QLabel("")
         self.mlb_state.setObjectName("muted")
@@ -129,7 +132,9 @@ class SupportTab(QWidget):
         self.test_btn.clicked.connect(self.test_match)
         self.view.clicked.connect(self._clicked)
         for cb, _ in self.pairs:
-            cb.toggled.connect(self._emit_changed)
+            if cb is not self.cb_ce:
+                cb.toggled.connect(self._emit_changed)
+        self.cb_ce.toggled.connect(self._ce_toggled)
         self.player.textChanged.connect(self._emit_changed)
         self.servant.textChanged.connect(self._emit_changed)
         self.level.valueChanged.connect(self._emit_changed)
@@ -152,7 +157,10 @@ class SupportTab(QWidget):
         self.level.setValue(s.min_level or 120)
         self.np.setValue(s.min_np or 5)
         self.ce_img = s.ce
-        self.ce_thumb.set_bgr(s.ce)
+        if s.ce is None:
+            self.ce_thumb.clear_thumb(CE_EMPTY)
+        else:
+            self.ce_thumb.set_bgr(s.ce)
         self.cb_player.setChecked(bool(s.player))
         self.cb_servant.setChecked(bool(s.servant))
         self.cb_level.setChecked(bool(s.min_level))
@@ -186,7 +194,20 @@ class SupportTab(QWidget):
     def _refresh_enabled(self):
         for cb, w in self.pairs[:4]:
             w.setEnabled(cb.isChecked())
-        self.cb_ce.setEnabled(self.ce_img is not None)
+
+    def _ce_toggled(self, on: bool):
+        """勾「禮裝」時還沒有禮裝圖：有選取的列就從那列切，沒有就提示先點一列。"""
+        if on and self.ce_img is None:
+            if self.shot is not None and self.sel_row is not None:
+                self.ce_img = S.crop_field(self.shot, self.sel_row, "ce")
+                self.ce_thumb.set_bgr(self.ce_img)
+            else:
+                self.cb_ce.blockSignals(True)
+                self.cb_ce.setChecked(False)
+                self.cb_ce.blockSignals(False)
+                self.hint.setText("要指定禮裝：先擷取支援選擇的畫面，再點想要的那一列，禮裝圖會從那一列切下來。")
+                return
+        self._emit_changed()
 
     def _update_summary(self):
         self.summary.setText("目前條件：" + self.current_spec().describe())
@@ -229,11 +250,21 @@ class SupportTab(QWidget):
                 return
 
     def select_row(self, row):
-        """點一列：OCR 讀出文字填進條件（勾選狀態不變），禮裝換成這一列的。"""
+        """點一列：禮裝換成這一列的，OCR 讀出文字填進條件（勾選狀態不變）。"""
         self.sel_row = row
+        # 先做不會失敗的圖片部分：就算後面 OCR 出錯，禮裝圖和滿破狀態也拿得到
+        self.ce_img = S.crop_field(self.shot, row, "ce")
+        self.ce_thumb.set_bgr(self.ce_img)
+        mlb = S.mlb_score(self.shot, row) >= S.MLB_THRESHOLD
+        self.mlb_state.setText("這一列：滿破" if mlb else "這一列：沒滿破 / 沒禮裝")
+        self._redraw()
         self.setCursor(Qt.CursorShape.WaitCursor)
         try:
             info = S.read_row(self.shot, row)
+        except Exception as e:  # OCR 出錯要讓人看得到，不要默默沒反應
+            self.hint.setText(f"<span style='color:{theme.RED}'>讀取這一列的文字失敗：{type(e).__name__}: {e}</span>")
+            self._emit_changed()
+            return
         finally:
             self.unsetCursor()
         self._loading = True
@@ -243,16 +274,11 @@ class SupportTab(QWidget):
             self.level.setValue(min(120, info["level"]))
         if info["np"]:
             self.np.setValue(min(5, info["np"]))
-        self.ce_img = S.crop_field(self.shot, row, "ce")
-        self.ce_thumb.set_bgr(self.ce_img)
         self._loading = False
-        mlb = S.mlb_score(self.shot, row) >= S.MLB_THRESHOLD
-        self.mlb_state.setText("這一列：滿破" if mlb else "這一列：沒滿破 / 沒禮裝")
         lv = f"Lv.{info['level']}" if info["level"] else "等級讀不到"
         np_ = f"寶具 Lv.{info['np']}" if info["np"] else "寶具等級讀不到"
         self.hint.setText(f"這一列讀到：{info['player'] or '（玩家讀不到）'}　{info['servant'] or '（從者讀不到）'}"
                           f"　{lv}　{np_}。勾選要用的條件後按「測試比對」確認。")
-        self._redraw()
         self._emit_changed()
 
     # ---- 測試比對 ----

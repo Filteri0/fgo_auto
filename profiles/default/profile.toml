@@ -5,15 +5,15 @@ runs = 0            # 0 = 無限
 apples = ["gold"]   # 可以吃的果實與順序；聖晶石永遠不會吃
 max_apples = 10
 
-[support]
+[support]   # 空字串 / 0 = 不限
+player = ""        # 玩家名稱（OCR 比對，容許讀錯一個字）
+servant = "摩根"       # 從者名稱
+min_level = 120          # 從者等級至少
+min_np = 5             # 寶具等級至少
+ce = "support_ce.png"            # 禮裝圖（同資料夾），空字串 = 不限
+mlb = true              # 禮裝要滿破
 class_tab = "berserker"   # 職階頁籤，空字串 = 不切換
-mlb = false              # 禮裝要滿破
 max_refresh = 20
-
-[support.fields]   # 有列出的欄位才會比對，圖在同一個資料夾
-servant = "support_servant.png"
-np = "support_np.png"
-level = "support_level.png"
 
 [battle]
 card_priority = "BAQ"

@@ -4,8 +4,8 @@ import os
 import shutil
 import sys
 
-from PySide6.QtCore import QSettings, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtGui import QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QComboBox, QFrame, QGridLayout, QGroupBox, QHBoxLayout,
                                QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPushButton,
                                QStackedWidget, QVBoxLayout, QWidget)
@@ -409,8 +409,37 @@ class MainWindow(QMainWindow):
         e.accept()
 
 
+APP_ID = "Filteri.FGOAuto"  # Windows 工作列用這個分組；沒設的話會顯示 Python 的圖示
+SMALL_ICON_SIZES = (16, 20, 24, 32, 40, 48)
+LARGE_ICON_SIZES = (64, 128, 256)
+
+
+def app_icon() -> QIcon:
+    """多尺寸圖示：48 以下用「頭 + 角」（工作列、標題列），64 以上用整張圖。由 make_icon.py 產生。"""
+    ic = QIcon()
+    small, large = QPixmap(str(ROOT / "assets" / "icon_small.png")), QPixmap(str(ROOT / "assets" / "icon_large.png"))
+    if small.isNull() or large.isNull():
+        return ic  # 圖檔不見就用預設圖示，不要讓程式開不起來
+    for size in SMALL_ICON_SIZES:
+        ic.addPixmap(small.scaled(size, size, mode=Qt.TransformationMode.SmoothTransformation))
+    for size in LARGE_ICON_SIZES:
+        ic.addPixmap(large.scaled(size, size, mode=Qt.TransformationMode.SmoothTransformation))
+    return ic
+
+
+def _set_windows_app_id():
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
+        except Exception:  # 失敗只是工作列圖示變回 Python 的，不影響功能
+            pass
+
+
 def make_app(argv=None) -> QApplication:
+    _set_windows_app_id()  # 要在建立視窗之前設定
     app = QApplication.instance() or QApplication(argv or sys.argv)
+    app.setWindowIcon(app_icon())
     app.setStyle("Fusion")
     app.setFont(QFont("Microsoft JhengHei UI", 10))
     app.setStyleSheet(theme.QSS)

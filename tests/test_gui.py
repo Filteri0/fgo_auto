@@ -113,3 +113,30 @@ def test_new_and_duplicate_profile(win, monkeypatch):
     monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("火種本 複本", True)))
     win.duplicate_profile()
     assert win.profile_box.count() == 3 and win.prof.name == "火種本 複本"
+
+
+# ---------- 程式圖示 ----------
+def test_app_icon_sizes_and_sources():
+    """小尺寸用「頭 + 角」、大尺寸用整張圖。"""
+    from PySide6.QtGui import QPixmap
+    from ui.app import LARGE_ICON_SIZES, SMALL_ICON_SIZES, app_icon, make_app
+    make_app([])
+    ic = app_icon()
+    sizes = {s.width() for s in ic.availableSizes()}
+    assert set(SMALL_ICON_SIZES) | set(LARGE_ICON_SIZES) <= sizes
+    small = QPixmap(str(ROOT / "assets" / "icon_small.png")).scaled(32, 32).toImage()
+    large = QPixmap(str(ROOT / "assets" / "icon_large.png")).scaled(32, 32).toImage()
+    got = ic.pixmap(32, 32).toImage()
+    diff = lambda a, b: sum(abs(a.pixelColor(x, y).red() - b.pixelColor(x, y).red())  # noqa: E731
+                            for x in range(0, 32, 4) for y in range(0, 32, 4))
+    assert diff(got, small) < diff(got, large)
+
+
+def test_ico_file_has_all_sizes():
+    from PySide6.QtGui import QImageReader
+    r = QImageReader(str(ROOT / "assets" / "app.ico"))
+    widths = []
+    for i in range(r.imageCount()):
+        r.jumpToImage(i)
+        widths.append(r.read().width())
+    assert widths == [16, 20, 24, 32, 40, 48, 64, 128, 256]

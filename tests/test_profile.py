@@ -4,18 +4,18 @@ import threading
 import pytest
 
 from bot import Bot
-from profile_store import Profile, profile_dir
+from profile_store import Profile, build_default
 
 
-def test_default_profile_loads():
-    p = Profile.load(profile_dir("default"))
+def test_builtin_default_profile():
+    p = build_default()
     assert set(p.support.templates) == {"player", "servant"}
     assert p.support.class_tab == "berserker"
     assert p.waves[2] == ["s3-1", "s3-3", "s2-3", "np3"]
 
 
 def test_roundtrip(tmp_path):
-    p = Profile.load(profile_dir("default"))
+    p = build_default()
     p.name, p.runs, p.max_apples, p.apples = "活動 90++", 40, 30, ["gold"]
     p.support.mlb = True
     p.waves[1] = ["s1-1>2", "m3", "np2"]
@@ -33,7 +33,7 @@ def test_unlimited_runs_saved_as_zero(tmp_path):
 
 
 def test_removed_condition_image_is_deleted(tmp_path):
-    p = Profile.load(profile_dir("default"))
+    p = build_default()
     p.save(tmp_path)
     del p.support.templates["player"]
     p.save(tmp_path)

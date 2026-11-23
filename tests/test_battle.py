@@ -35,8 +35,8 @@ def test_parse_script_requires_np_last():
 
 
 def test_default_profile_script():
-    from profile_store import Profile, profile_dir
-    script = Profile.load(profile_dir("default")).to_config().script
+    from profile_store import build_default
+    script = build_default().to_config().script
     assert [str(a) for a in script[1]] == ["s2-1", "s1-3", "m1", "np2"]
     assert set(script) == {1, 2, 3}
 

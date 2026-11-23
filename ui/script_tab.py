@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
 from battle import parse_action
 
 from . import theme
+from .icons import ICON_SIZE, icon
 
 CARD_ZH = {"B": "Buster", "A": "Arts", "Q": "Quick"}
 PRIORITIES = ["".join(p) for p in permutations("BAQ")]
@@ -27,7 +28,7 @@ def describe(action: str, party: list[str]) -> str:
 
 def color_of(action: str) -> str:
     k = parse_action(action).kind
-    return {"skill": theme.TEXT, "master": theme.PURPLE, "np": "#ff8f7a"}[k]
+    return {"skill": theme.TEXT, "master": theme.AMBER, "np": theme.CORAL}[k]
 
 
 class ScriptTab(QWidget):
@@ -78,7 +79,7 @@ class ScriptTab(QWidget):
         for s in (1, 2, 3):
             h = QLabel()
             h.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            h.setStyleSheet(f"color:{theme.GOLD};font-weight:bold")
+            h.setStyleSheet(f"color:{theme.ACCENT_TEXT};font-weight:bold")
             self.headers.append(h)
             grid.addWidget(h, 0, s - 1)
             for i in (1, 2, 3):
@@ -92,7 +93,7 @@ class ScriptTab(QWidget):
             grid.addWidget(nb, 4, s - 1)
         pal.addLayout(grid)
         ml = QLabel("御主技能")
-        ml.setStyleSheet(f"color:{theme.PURPLE};font-weight:bold;margin-top:8px")
+        ml.setStyleSheet(f"color:{theme.AMBER};font-weight:bold;margin-top:8px")
         pal.addWidget(ml)
         mrow = QHBoxLayout()
         for i in (1, 2, 3):
@@ -106,7 +107,7 @@ class ScriptTab(QWidget):
         tip.setWordWrap(True)
         pal.addWidget(tip)
         pal.addStretch(1)
-        g_pal.setFixedWidth(360)
+        g_pal.setFixedWidth(330)
         body.addWidget(g_pal)
 
         # ---- 右：三波 ----
@@ -117,11 +118,15 @@ class ScriptTab(QWidget):
             lw = QListWidget()
             lw.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
             lw.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+            lw.setWordWrap(True)  # 長的動作（有指定目標）換行，不要出現水平捲軸
+            lw.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             lw.model().rowsMoved.connect(self._emit_changed)
             lw.itemPressed.connect(lambda _=None, w=w: self.wave_group.button(w).setChecked(True))
             gl.addWidget(lw, 1)
             row = QHBoxLayout()
-            d = QPushButton("刪除選取")
+            d = QPushButton(" 刪除選取")
+            d.setIcon(icon("trash", theme.TEXT))
+            d.setIconSize(ICON_SIZE)
             d.clicked.connect(lambda _=False, w=w: self._delete(w))
             c = QPushButton("清空")
             c.setObjectName("flat")

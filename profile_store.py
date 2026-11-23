@@ -125,19 +125,27 @@ def new_profile_key() -> str:
     return key
 
 
-def create_default() -> Profile:
-    """把舊版寫死的設定（VOYOV 的摩根 + battle.toml 的腳本）轉成預設設定組。"""
+def build_default() -> Profile:
+    """內建的預設設定（VOYOV 的摩根 + 原本 battle.toml 的腳本），不讀也不寫檔案。
+
+    測試用這個，不要讀 profiles/default：那份使用者會在介面裡改。
+    """
     import support as S
     img = imread(ROOT / "screenshots" / "support_select.png")
     row = S.find_rows(img)[0]  # 截圖第一列就是 VOYOV 的摩根
     spec = SupportSpec({k: S.crop_field(img, row, k) for k in ("player", "servant")}, class_tab="berserker")
-    p = Profile(
+    return Profile(
         name="預設（VOYOV 的摩根）",
         support=spec,
         waves={1: ["s2-1", "s1-3", "m1", "np2"], 2: ["s3-1", "s3-3", "s2-3", "np3"],
                3: ["s1-1", "s1-2", "s1-3", "np1"]},
         party=["迪亞馬特", "摩根", "摩根（助戰）"],
     )
+
+
+def create_default() -> Profile:
+    """第一次執行、還沒有任何設定組時，建立預設設定組。"""
+    p = build_default()
     p.save(profile_dir(DEFAULT_PROFILE))
     return p
 

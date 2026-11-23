@@ -2,13 +2,13 @@
 import pytest
 
 from bot import Bot, Config, Stop
-from profile_store import Profile, profile_dir
+from profile_store import Profile, build_default
 from support import SupportSpec
 from vision import ROOT, imread
 
 _imgs = {}
-# 預設設定組的助戰條件：VOYOV 的摩根、狂職頁籤
-DEFAULT_SUPPORT = Profile.load(profile_dir("default")).support
+# 內建預設的助戰條件：VOYOV 的摩根、狂職頁籤（不讀 profiles/default，使用者會改）
+DEFAULT_SUPPORT = build_default().support
 MORGAN_ROW_TAP = (426, 301)  # support_select 第一列（VOYOV 的摩根）的點擊位置
 
 

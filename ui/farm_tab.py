@@ -9,6 +9,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QGridLayout, QGroup
 
 from bot import APPLE_ZH, APPLES
 
+from . import theme
+from .icons import ICON_SIZE, icon
 from .widgets import ScreenView, stat_card
 
 STATE_ZH = {
@@ -75,10 +77,14 @@ class FarmTab(QWidget):
 
         left.addStretch(1)
         btns = QHBoxLayout()
-        self.start_btn = QPushButton("▶  開始周回")
+        self.start_btn = QPushButton(" 開始周回")
         self.start_btn.setObjectName("primary")
-        self.stop_btn = QPushButton("■  停止")
+        self.start_btn.setIcon(icon("play", "white"))
+        self.start_btn.setIconSize(ICON_SIZE)
+        self.stop_btn = QPushButton(" 停止")
         self.stop_btn.setObjectName("danger")
+        self.stop_btn.setIcon(icon("stop", theme.RED))
+        self.stop_btn.setIconSize(ICON_SIZE)
         self.stop_btn.setEnabled(False)
         btns.addWidget(self.start_btn, 2)
         btns.addWidget(self.stop_btn, 1)

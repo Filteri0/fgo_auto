@@ -8,6 +8,7 @@ from support import FIELD_ZH, SupportSpec
 from vision import ROOT, imread
 
 from . import theme
+from .icons import ICON_SIZE, icon
 from .widgets import ScreenView, Thumb
 
 FIELD_ORDER = ["player", "servant", "np", "level", "ce"]
@@ -47,9 +48,12 @@ class SupportTab(QWidget):
         left = QVBoxLayout()
         left.setSpacing(10)
         bar = QHBoxLayout()
-        self.capture_btn = QPushButton("擷取模擬器畫面")
-        self.open_btn = QPushButton("開啟截圖檔…")
-        self.test_btn = QPushButton("測試比對")
+        self.capture_btn = QPushButton(" 擷取模擬器畫面")
+        self.open_btn = QPushButton(" 開啟截圖檔…")
+        self.test_btn = QPushButton(" 測試比對")
+        for b, ic in ((self.capture_btn, "camera"), (self.open_btn, "photo"), (self.test_btn, "check")):
+            b.setIcon(icon(ic, theme.TEXT))
+            b.setIconSize(ICON_SIZE)
         bar.addWidget(self.capture_btn)
         bar.addWidget(self.open_btn)
         bar.addStretch(1)
@@ -244,12 +248,12 @@ class SupportTab(QWidget):
                 ok = self.match_result[r]
                 ov.append((box, theme.GREEN if ok else theme.RED, 3, "符合" if ok else ""))
             elif r == self.sel_row:
-                ov.append((box, theme.GOLD, 3, "已選取"))
+                ov.append((box, theme.ACCENT, 3, "已選取"))
             else:
                 ov.append((box, "#5b6b8f", 1, ""))
         if self.sel_row is not None:
             for f in FIELD_ORDER:
-                ov.append((S.field_box(self.sel_row, f), theme.GOLD if self.checks[f].isChecked() else "#7a869e", 1, ""))
+                ov.append((S.field_box(self.sel_row, f), theme.ACCENT_TEXT if self.checks[f].isChecked() else theme.DIM, 1, ""))
         self.view.set_overlays(ov)
 
     def _update_summary(self):

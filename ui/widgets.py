@@ -58,7 +58,7 @@ class ScreenView(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#0b0e14"))
+        p.setBrush(QColor(theme.BG_DEEP))
         p.drawRoundedRect(QRectF(self.rect()), 10, 10)
         if self._pix is None:
             p.setPen(QColor(theme.MUTED))

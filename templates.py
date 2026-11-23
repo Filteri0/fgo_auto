@@ -56,6 +56,7 @@ SPECS: dict[str, tuple[str, tuple[int, int, int, int]]] = {
     # 支援列表：每一列的定位標籤與滿破標記
     "support_row_label":   ("support_select", (255, 288, 297, 314)),  # 每列都有的「從者」
     "support_mlb_star":    ("support_select", (178, 336, 204, 362)),  # 禮裝右下角滿破標記（第一列）
+    "support_master_lv":   ("support_select", (731, 203, 759, 221)),  # 名字右邊的玩家「Lv.」，用來判斷版型
     # 戰鬥
     "skill_target_close":  ("skill_target",   (1075, 135, 1120, 175)),
     "master_skill_icon1":  ("master_skill",   (877, 282, 943, 343)),  # 御主技能選單展開後的技能1圖示（換禮裝要重切）

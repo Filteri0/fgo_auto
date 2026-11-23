@@ -1,7 +1,9 @@
 """支援列表：找出每一列，切出各欄位，依條件比對。
 
-每一列用「從者」這個固定標籤定位，其他欄位都是相對於標籤中心的固定偏移。
-欄位（1280x720，相對「從者」標籤中心）：
+每一列用「從者」這個固定標籤定位，其他欄位是相對於標籤中心的偏移。
+一列有兩種版型：玩家有寫個人簡介時，名字下面多一行簡介；沒寫的列名字會往下 26 像素、
+頭像區（等級、禮裝、滿破）往下 14 像素。版型用名字右邊的玩家「Lv.」位置判斷。
+欄位（1280x720，相對「從者」標籤中心，以「有簡介」版型為準）：
     player   玩家名稱
     servant  從者名稱
     np       寶具那一行（寶具名稱 + 寶具等級，所以也隱含了從者）
@@ -11,6 +13,7 @@
 """
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NamedTuple
 
 import cv2
 import numpy as np
@@ -34,11 +37,49 @@ MATCH_MARGIN = 6
 THRESHOLD = 0.85
 LABEL_THRESHOLD = 0.9  # 「寶具」標籤跟「從者」長得像，門檻要高一點
 
+# 版型判斷：名字右邊玩家「Lv.」相對標籤的 y（實機量測：有簡介 -98、沒簡介 -72）
+MASTER_LV_X = (720, 775)
+MASTER_LV_Y = (-115, -45)   # 「Lv.」高 18 像素，沒簡介時頂端在 -72，要包到 -54 以下
+NO_COMMENT_SPLIT = -85              # 比這個低（數值大）= 沒有簡介
+PLAYER_SHIFT, PORTRAIT_SHIFT = 26, 14
+PORTRAIT_FIELDS = ("level", "ce", "mlb")
 
-def field_box(row: tuple[int, int], name: str) -> tuple[int, int, int, int]:
-    cx, cy = row
+
+class Row(NamedTuple):
+    """一列助戰：「從者」標籤中心 + 版型造成的偏移。可以當 (x, y) 用：row[0]、row[1]。"""
+    x: int
+    y: int
+    player_dy: int = 0     # 沒有簡介時名字往下移
+    portrait_dy: int = 0   # 沒有簡介時頭像區往下移
+
+    @property
+    def has_comment(self) -> bool:
+        return self.player_dy == 0
+
+
+def field_box(row, name: str) -> tuple[int, int, int, int]:
+    cx, cy = row[0], row[1]
+    dy = 0
+    if isinstance(row, Row):
+        dy = row.player_dy if name == "player" else row.portrait_dy if name in PORTRAIT_FIELDS else 0
     x1, y1, x2, y2 = FIELDS[name]
-    return cx + x1, cy + y1, cx + x2, cy + y2
+    return cx + x1, cy + y1 + dy, cx + x2, cy + y2 + dy
+
+
+def _layout(img, cx: int, cy: int) -> Row:
+    x1, x2 = MASTER_LV_X
+    y1, y2 = max(0, cy + MASTER_LV_Y[0]), cy + MASTER_LV_Y[1]
+    region = img[y1:y2, x1:x2]
+    # 用彩色比對：金色「Lv.」在淺色底上，轉灰階後幾乎沒有對比（實機灰階只有 0.47 分）
+    tpl = template("support_master_lv", color=True)
+    if region.shape[0] < tpl.shape[0]:
+        return Row(cx, cy)
+    res = cv2.matchTemplate(region, tpl, cv2.TM_CCOEFF_NORMED)
+    _, score, _, (_, ly) = cv2.minMaxLoc(res)
+    rel = y1 + ly - cy
+    if score >= 0.8 and rel > NO_COMMENT_SPLIT:
+        return Row(cx, cy, PLAYER_SHIFT, PORTRAIT_SHIFT)
+    return Row(cx, cy)
 
 
 def crop_field(img, row, name) -> np.ndarray:
@@ -46,8 +87,8 @@ def crop_field(img, row, name) -> np.ndarray:
     return img[y1:y2, x1:x2].copy()
 
 
-def find_rows(img, fully_visible: bool = True) -> list[tuple[int, int]]:
-    """回傳每一列「從者」標籤的中心座標，由上到下。fully_visible = 只要整列都在畫面內的。"""
+def find_rows(img, fully_visible: bool = True) -> list[Row]:
+    """回傳每一列（「從者」標籤中心 + 版型），由上到下。fully_visible = 只要整列都在畫面內的。"""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     x1, y1, x2, y2 = LIST_BOX
     tpl = template("support_row_label")
@@ -61,7 +102,7 @@ def find_rows(img, fully_visible: bool = True) -> list[tuple[int, int]]:
             rows.append((int(cx), int(cy)))
     if fully_visible:
         rows = [r for r in rows if r[1] + ROW_TOP >= y1 and r[1] + ROW_BOTTOM <= SCREEN_H - 2]
-    return sorted(rows, key=lambda r: r[1])
+    return [_layout(img, cx, cy) for cx, cy in sorted(rows, key=lambda r: r[1])]
 
 
 def any_row_cut_off(img) -> bool:
@@ -125,7 +166,7 @@ def _star_mask(bgr) -> np.ndarray:
 
 
 MLB_MARGIN = 10       # 不同列的星星位置會差幾個像素
-MLB_MARGIN_DOWN = 24  # 實機：有些列的禮裝區比較高，星星低了約 14 像素
+MLB_MARGIN_DOWN = 10  # 星星低 14 像素其實是「沒有簡介」版型，已由 Row.portrait_dy 處理
 
 
 def mlb_score(img, row) -> float:
@@ -146,7 +187,7 @@ def row_scores(img, row, spec: SupportSpec) -> dict[str, float]:
     return scores
 
 
-MLB_THRESHOLD = 0.75  # 實機：滿破 0.88~1.00、沒滿破 0.59、沒裝禮裝 0.05
+MLB_THRESHOLD = 0.45  # 實機（版型修正後）：滿破 0.66~1.00、沒滿破 0.14、沒裝禮裝 0.05
 
 
 def row_matches(img, row, spec: SupportSpec) -> bool:
@@ -156,5 +197,5 @@ def row_matches(img, row, spec: SupportSpec) -> bool:
 
 def tap_point(row) -> tuple[int, int]:
     """點這一列的從者名稱區（點頭像會打開詳細資訊）。"""
-    cx, cy = row
+    cx, cy = row[0], row[1]
     return cx + 150, cy

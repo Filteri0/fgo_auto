@@ -14,10 +14,40 @@ def shot(name):
     ("support_select_no_voyov", [310, 510]),
     ("support_select_cutoff", [331, 531]),
     ("support_select_rider", [335, 535]),
+    ("support_no_comment", [407, 607]),
     ("refresh_confirm", []),                  # 對話框蓋住列表
 ])
 def test_find_rows(name, rows):
-    assert [y for _, y in S.find_rows(shot(name))] == rows
+    assert [r.y for r in S.find_rows(shot(name))] == rows
+
+
+@pytest.mark.parametrize("name,comment", [
+    ("support_select", [True, True]),         # VOYOV：有個人簡介「哭阿沒QP」
+    ("support_select_no_voyov", [True, True]),
+    ("support_select_rider", [False, False]),  # 幻夢星光、紅之寧靜：沒有簡介
+    ("support_no_comment", [False, False]),    # 呼噗噗.：沒有簡介（實機切圖歪掉的那張）
+])
+def test_row_layout(name, comment):
+    assert [r.has_comment for r in S.find_rows(shot(name))] == comment
+
+
+def test_no_comment_row_fields_are_aligned():
+    """沒有簡介的列：用同一列切出來的圖比對自己要全部符合（欄位沒切歪）。"""
+    img = shot("support_no_comment")
+    row = S.find_rows(img)[0]  # 呼噗噗. 的摩根 Lv120
+    spec = S.SupportSpec({k: S.crop_field(img, row, k) for k in ("player", "servant", "np", "level", "ce")},
+                         mlb=True)
+    assert [S.row_matches(img, r, spec) for r in S.find_rows(img)] == [True, False]
+    # 玩家名稱框要框到名字（不是上面的空白）：名字是深色字，框內要有夠多深色像素
+    crop = S.crop_field(img, row, "player")
+    assert (crop.mean(axis=2) < 120).mean() > 0.05
+
+
+def test_morgan_from_other_layout_matches_by_servant_np():
+    """VOYOV（有簡介）切的「從者 + 寶具」條件，也能認出沒簡介那列的摩根。"""
+    spec = _morgan_spec(fields=("servant", "np"))
+    img = shot("support_no_comment")
+    assert [S.row_matches(img, r, spec) for r in S.find_rows(img)] == [True, False]
 
 
 def _morgan_spec(**kw):
@@ -56,7 +86,8 @@ def test_ce_matches_across_servants():
     ("support_select", [True, True]),
     ("support_select_no_voyov", [True, True]),
     ("support_select_cutoff", [True, False]),   # 第二列（VOYOV 的阿爾托莉亞）禮裝沒滿破
-    ("support_select_rider", [False, True]),    # 第一列沒裝禮裝；第二列星星位置比較低
+    ("support_select_rider", [False, True]),    # 第一列沒裝禮裝；第二列是沒簡介版型（星星較低）
+    ("support_no_comment", [True, True]),       # 第二列禮裝背景也是黃綠色，分數較低（0.66）但仍要認得
 ])
 def test_mlb(name, mlb):
     img = shot(name)

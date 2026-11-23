@@ -191,7 +191,7 @@ class SupportTab(QWidget):
 
     def _clicked(self, x, y):
         for r in self.rows:
-            if r[1] + S.ROW_TOP <= y <= r[1] + S.ROW_BOTTOM:
+            if r.y + S.ROW_TOP + r.portrait_dy <= y <= r.y + S.ROW_BOTTOM + r.portrait_dy:
                 self.select_row(r)
                 return
 
@@ -243,7 +243,8 @@ class SupportTab(QWidget):
     def _redraw(self):
         ov = []
         for r in self.rows:
-            box = (r[0] + ROW_X[0], r[1] + S.ROW_TOP + 4, r[0] + ROW_X[1], r[1] + S.ROW_BOTTOM - 4)
+            top, bottom = r.y + S.ROW_TOP + r.portrait_dy, r.y + S.ROW_BOTTOM + r.portrait_dy  # 沒簡介的列整體偏下
+            box = (r.x + ROW_X[0], top + 4, r.x + ROW_X[1], bottom - 4)
             if r in self.match_result:
                 ok = self.match_result[r]
                 ov.append((box, theme.GREEN if ok else theme.RED, 3, "符合" if ok else ""))

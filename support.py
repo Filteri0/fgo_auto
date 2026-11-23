@@ -1,4 +1,4 @@
-"""支援列表：找出每一列，切出各欄位，依條件比對。
+"""支援列表：找出每一列，切出各欄位，依條件比對（文字用 OCR，禮裝用圖片）。
 
 每一列用「從者」這個固定標籤定位，其他欄位是相對於標籤中心的偏移。
 一列有兩種版型：玩家有寫個人簡介時，名字下面多一行簡介；沒寫的列名字會往下 26 像素、
@@ -112,38 +112,69 @@ def any_row_cut_off(img) -> bool:
 
 @dataclass
 class SupportSpec:
-    """指定助戰的條件：有放模板的欄位才比對。"""
-    templates: dict[str, np.ndarray] = field(default_factory=dict)  # 欄位名 → BGR 圖
-    mlb: bool = False                 # 禮裝要滿破（用內建的滿破標記模板）
+    """指定助戰的條件。文字類用 OCR 讀（不受頭像背景影響），禮裝用圖片比對（禮裝圖上沒有字）。
+
+    空字串 / 0 / None = 不限這個條件。
+    """
+    player: str = ""                  # 玩家名稱
+    servant: str = ""                 # 從者名稱
+    min_level: int = 0                # 從者等級至少
+    min_np: int = 0                   # 寶具等級至少
+    ce: np.ndarray | None = None      # 禮裝圖（從支援列表切下來的）
+    mlb: bool = False                 # 禮裝要滿破
     class_tab: str | None = "berserker"
 
     def describe(self) -> str:
-        parts = [FIELD_ZH[k] for k in self.templates]
+        parts = []
+        if self.player:
+            parts.append(f"玩家 {self.player}")
+        if self.servant:
+            parts.append(f"從者 {self.servant}")
+        if self.min_level:
+            parts.append(f"等級 ≥ {self.min_level}")
+        if self.min_np:
+            parts.append(f"寶具 ≥ Lv.{self.min_np}")
+        if self.ce is not None:
+            parts.append("指定禮裝")
         if self.mlb:
-            parts.append(FIELD_ZH["mlb"])
+            parts.append("禮裝滿破")
         return "、".join(parts) or "（沒有條件：選第一個）"
 
     # ---- 存讀 ----
     def save(self, folder: Path) -> dict:
         folder.mkdir(parents=True, exist_ok=True)
-        files = {}
-        for k, img in self.templates.items():
-            name = f"support_{k}.png"
-            imwrite(folder / name, img)
-            files[k] = name
-        return {"fields": files, "mlb": self.mlb, "class_tab": self.class_tab or ""}
+        ce_file = ""
+        if self.ce is not None:
+            ce_file = "support_ce.png"
+            imwrite(folder / ce_file, self.ce)
+        return {"player": self.player, "servant": self.servant, "min_level": self.min_level,
+                "min_np": self.min_np, "ce": ce_file, "mlb": self.mlb, "class_tab": self.class_tab or ""}
 
     @classmethod
     def load(cls, folder: Path, data: dict) -> "SupportSpec":
-        tpls = {k: imread(folder / f) for k, f in data.get("fields", {}).items() if k in FIELDS and k != "mlb"}
-        return cls(tpls, bool(data.get("mlb", False)), data.get("class_tab") or None)
+        spec = cls(
+            player=str(data.get("player", "")), servant=str(data.get("servant", "")),
+            min_level=int(data.get("min_level", 0) or 0), min_np=int(data.get("min_np", 0) or 0),
+            ce=imread(folder / data["ce"]) if data.get("ce") else None,
+            mlb=bool(data.get("mlb", False)), class_tab=data.get("class_tab") or None,
+        )
+        old = data.get("fields")  # 舊格式：每個欄位存一張圖 → 用 OCR 讀成文字 / 數字
+        if old:
+            import ocr
 
-
-LEVEL_BINARY = 190  # 等級文字疊在從者頭像上：只留白字比對，換頭像也不受影響
-
-
-def _white(bgr) -> np.ndarray:
-    return cv2.threshold(cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY), LEVEL_BINARY, 255, cv2.THRESH_BINARY)[1]
+            def img(k):
+                return imread(folder / old[k])
+            if "player" in old:
+                spec.player = ocr.read(img("player")).strip(" ，,")
+            if "servant" in old:
+                spec.servant = ocr.read(img("servant")).strip()
+            if "level" in old:
+                spec.min_level = ocr.parse_level(ocr.read(img("level"))) or 0
+            if "np" in old:
+                spec.min_np = ocr.parse_np_level(ocr.read(img("np"))) or 0
+            if "ce" in old:
+                spec.ce = img("ce")
+        return spec
 
 
 def _score(img, row, name, tpl) -> float:
@@ -152,8 +183,6 @@ def _score(img, row, name, tpl) -> float:
     region = img[max(0, y1 - m):y2 + m, max(0, x1 - m):x2 + m]
     if region.shape[0] < tpl.shape[0] or region.shape[1] < tpl.shape[1]:
         return 0.0
-    if name == "level":
-        region, tpl = _white(region), _white(tpl)
     res = cv2.matchTemplate(region, tpl, cv2.TM_CCOEFF_NORMED)
     return float(np.nan_to_num(res).max())
 
@@ -180,19 +209,64 @@ def mlb_score(img, row) -> float:
     return float(np.nan_to_num(res).max())
 
 
-def row_scores(img, row, spec: SupportSpec) -> dict[str, float]:
-    scores = {k: _score(img, row, k, t) for k, t in spec.templates.items()}
-    if spec.mlb:
-        scores["mlb"] = mlb_score(img, row)
-    return scores
-
-
 MLB_THRESHOLD = 0.45  # 實機（版型修正後）：滿破 0.66~1.00、沒滿破 0.14、沒裝禮裝 0.05
 
 
+def read_row(img, row) -> dict:
+    """OCR 讀出一列的文字欄位（介面點選一列時用來自動填條件）。"""
+    import ocr
+    np_text = ocr.read(crop_field(img, row, "np"))
+    level_text = ocr.read(crop_field(img, row, "level"))
+    return {
+        "player": ocr.read(crop_field(img, row, "player")).strip(" ，,"),
+        "servant": ocr.read(crop_field(img, row, "servant")).strip(),
+        "level": ocr.parse_level(level_text), "np": ocr.parse_np_level(np_text),
+        "np_text": np_text, "level_text": level_text,
+    }
+
+
+def check_row(img, row, spec: SupportSpec, stop_early: bool = True) -> list[tuple[str, bool, str]]:
+    """逐項檢查條件，回傳 [(條件名稱, 是否符合, 讀到的值)]。
+
+    stop_early：遇到第一個不符就停（Bot 用，省 OCR 時間）；介面要看全部就傳 False。
+    便宜的圖片比對先做，OCR 後做。
+    """
+    import ocr
+    out: list[tuple[str, bool, str]] = []
+
+    def add(name, ok, shown):
+        out.append((name, ok, shown))
+        return not ok and stop_early
+
+    if spec.ce is not None:
+        s = _score(img, row, "ce", spec.ce)
+        if add("禮裝", s >= THRESHOLD, f"{s:.2f}"):
+            return out
+    if spec.mlb:
+        s = mlb_score(img, row)
+        if add("禮裝滿破", s >= MLB_THRESHOLD, "滿破" if s >= MLB_THRESHOLD else "沒滿破"):
+            return out
+    if spec.servant:
+        t = ocr.read(crop_field(img, row, "servant"))
+        if add("從者", ocr.same_name(t, spec.servant), t or "（讀不到）"):
+            return out
+    if spec.player:
+        t = ocr.read(crop_field(img, row, "player"))
+        if add("玩家", ocr.same_name(t, spec.player), t or "（讀不到）"):
+            return out
+    if spec.min_level:
+        lv = ocr.parse_level(ocr.read(crop_field(img, row, "level")))
+        if add("等級", lv is not None and lv >= spec.min_level, f"Lv.{lv}" if lv else "（讀不到）"):
+            return out
+    if spec.min_np:
+        lv = ocr.parse_np_level(ocr.read(crop_field(img, row, "np")))
+        if add("寶具", lv is not None and lv >= spec.min_np, f"Lv.{lv}" if lv else "（讀不到）"):
+            return out
+    return out
+
+
 def row_matches(img, row, spec: SupportSpec) -> bool:
-    return all(s >= (MLB_THRESHOLD if k == "mlb" else THRESHOLD)
-               for k, s in row_scores(img, row, spec).items())
+    return all(ok for _, ok, _ in check_row(img, row, spec))
 
 
 def tap_point(row) -> tuple[int, int]:

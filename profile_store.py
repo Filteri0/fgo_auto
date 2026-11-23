@@ -1,7 +1,7 @@
 """設定組：一個關卡的周回設定（場數、蘋果、助戰條件、戰鬥腳本）存成一個資料夾。
 
     profiles/<資料夾>/profile.toml        設定
-    profiles/<資料夾>/support_*.png       助戰條件的圖（從支援列表切下來的）
+    profiles/<資料夾>/support_ce.png      助戰的禮裝條件圖（從支援列表切下來的）
 
 命令列（main.py --profile）和圖形介面讀寫的是同一份。
 """
@@ -11,8 +11,8 @@ from pathlib import Path
 
 from battle import parse_script
 from bot import APPLES, Config
-from support import FIELDS, SupportSpec
-from vision import ROOT, imread
+from support import SupportSpec
+from vision import ROOT
 
 PROFILES_DIR = ROOT / "profiles"
 DEFAULT_PROFILE = "default"
@@ -62,13 +62,15 @@ class Profile:
             f"apples = {_list(self.apples)}   # 可以吃的果實與順序；聖晶石永遠不會吃",
             f"max_apples = {self.max_apples}",
             "",
-            "[support]",
-            f"class_tab = {_q(sup['class_tab'])}   # 職階頁籤，空字串 = 不切換",
+            "[support]   # 空字串 / 0 = 不限",
+            f"player = {_q(sup['player'])}        # 玩家名稱（OCR 比對，容許讀錯一個字）",
+            f"servant = {_q(sup['servant'])}       # 從者名稱",
+            f"min_level = {sup['min_level']}          # 從者等級至少",
+            f"min_np = {sup['min_np']}             # 寶具等級至少",
+            f"ce = {_q(sup['ce'])}            # 禮裝圖（同資料夾），空字串 = 不限",
             f"mlb = {_bool(sup['mlb'])}              # 禮裝要滿破",
+            f"class_tab = {_q(sup['class_tab'])}   # 職階頁籤，空字串 = 不切換",
             f"max_refresh = {self.support_max_refresh}",
-            "",
-            "[support.fields]   # 有列出的欄位才會比對，圖在同一個資料夾",
-            *[f"{k} = {_q(v)}" for k, v in sup["fields"].items()],
             "",
             "[battle]",
             f"card_priority = {_q(self.card_priority)}",
@@ -130,10 +132,7 @@ def build_default() -> Profile:
 
     測試用這個，不要讀 profiles/default：那份使用者會在介面裡改。
     """
-    import support as S
-    img = imread(ROOT / "screenshots" / "support_select.png")
-    row = S.find_rows(img)[0]  # 截圖第一列就是 VOYOV 的摩根
-    spec = SupportSpec({k: S.crop_field(img, row, k) for k in ("player", "servant")}, class_tab="berserker")
+    spec = SupportSpec(player="VOYOV", servant="摩根", class_tab="berserker")
     return Profile(
         name="預設（VOYOV 的摩根）",
         support=spec,
@@ -163,7 +162,6 @@ def _bool(b: bool) -> str:
     return "true" if b else "false"
 
 
-assert set(FIELDS) >= {"player", "servant"}
 
 
 if __name__ == "__main__":

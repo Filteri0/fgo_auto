@@ -1,4 +1,4 @@
-name = "預設（VOYOV 的摩根）"
+name = "摩根"
 
 [farm]
 runs = 0            # 0 = 無限
@@ -11,8 +11,9 @@ mlb = false              # 禮裝要滿破
 max_refresh = 20
 
 [support.fields]   # 有列出的欄位才會比對，圖在同一個資料夾
-player = "support_player.png"
 servant = "support_servant.png"
+np = "support_np.png"
+level = "support_level.png"
 
 [battle]
 card_priority = "BAQ"

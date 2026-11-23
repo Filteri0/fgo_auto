@@ -9,7 +9,7 @@ from profile_store import Profile, build_default
 
 def test_builtin_default_profile():
     p = build_default()
-    assert set(p.support.templates) == {"player", "servant"}
+    assert (p.support.player, p.support.servant) == ("VOYOV", "摩根")
     assert p.support.class_tab == "berserker"
     assert p.waves[2] == ["s3-1", "s3-3", "s2-3", "np3"]
 
@@ -17,12 +17,13 @@ def test_builtin_default_profile():
 def test_roundtrip(tmp_path):
     p = build_default()
     p.name, p.runs, p.max_apples, p.apples = "活動 90++", 40, 30, ["gold"]
-    p.support.mlb = True
+    p.support.mlb, p.support.min_level, p.support.min_np = True, 120, 5
     p.waves[1] = ["s1-1>2", "m3", "np2"]
     p.save(tmp_path / "event")
     q = Profile.load(tmp_path / "event")
     assert (q.name, q.runs, q.max_apples, q.apples) == ("活動 90++", 40, 30, ["gold"])
-    assert q.support.mlb and set(q.support.templates) == {"player", "servant"}
+    assert q.support.mlb and (q.support.player, q.support.servant) == ("VOYOV", "摩根")
+    assert (q.support.min_level, q.support.min_np) == (120, 5)
     assert q.waves[1] == ["s1-1>2", "m3", "np2"]
 
 
@@ -32,13 +33,16 @@ def test_unlimited_runs_saved_as_zero(tmp_path):
     assert Profile.load(tmp_path).runs is None
 
 
-def test_removed_condition_image_is_deleted(tmp_path):
+def test_removed_ce_image_is_deleted(tmp_path):
+    import numpy as np
     p = build_default()
+    p.support.ce = np.zeros((30, 90, 3), np.uint8)
     p.save(tmp_path)
-    del p.support.templates["player"]
+    assert (tmp_path / "support_ce.png").exists()
+    p.support.ce = None
     p.save(tmp_path)
-    assert not (tmp_path / "support_player.png").exists()
-    assert set(Profile.load(tmp_path).support.templates) == {"servant"}
+    assert not (tmp_path / "support_ce.png").exists()
+    assert Profile.load(tmp_path).support.ce is None
 
 
 def test_bad_script_rejected(tmp_path):

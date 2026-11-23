@@ -229,7 +229,7 @@ def test_support_gives_up_after_max_refreshes(monkeypatch, tmp_path):
 
 
 def test_support_without_class_tab():
-    bot, d, _ = make("support_select", support=SupportSpec(DEFAULT_SUPPORT.templates, class_tab=None))
+    bot, d, _ = make("support_select", support=SupportSpec(player="VOYOV", servant="摩根", class_tab=None))
     bot.step()
     assert d.taps[0] == MORGAN_ROW_TAP
 

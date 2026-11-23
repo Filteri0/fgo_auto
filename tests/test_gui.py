@@ -27,8 +27,10 @@ def win(tmp_path, monkeypatch):
 def test_opens_default_profile_clean(win):
     assert win.key == "default" and not win.dirty
     assert win.script.party() == ["迪亞馬特", "摩根", "摩根（助戰）"]
-    assert win.support.checks["player"].isChecked() and win.support.checks["servant"].isChecked()
-    assert not win.support.checks["ce"].isChecked()
+    t = win.support
+    assert t.cb_player.isChecked() and t.player.text() == "VOYOV"
+    assert t.cb_servant.isChecked() and t.servant.text() == "摩根"
+    assert not t.cb_ce.isChecked() and not t.cb_level.isChecked()
 
 
 def test_edit_marks_dirty_and_save_roundtrip(win, tmp_path):
@@ -72,17 +74,30 @@ def test_support_pick_row_and_match(win):
     tab = win.support
     tab.set_shot(imread(ROOT / "screenshots" / "support_select_no_voyov.png"))
     assert len(tab.rows) == 2
-    tab.select_row(tab.rows[1])            # JetSet 的摩根
-    tab.checks["player"].setChecked(False)
-    tab.checks["np"].setChecked(True)
+    tab.select_row(tab.rows[1])            # JetSet 的摩根：OCR 自動填入
+    assert tab.player.text() == "JetSet" and tab.servant.text() == "摩根"
+    assert (tab.level.value(), tab.np.value()) == (110, 5)
+    tab.cb_player.setChecked(False)        # 不限玩家
+    tab.cb_np.setChecked(True)
     spec = tab.current_spec()
-    assert set(spec.templates) == {"servant", "np"}
+    assert (spec.player, spec.servant, spec.min_np, spec.min_level) == ("", "摩根", 5, 0)
     tab.test_match()
     assert list(tab.match_result.values()) == [False, True]
+    assert "從者 摩根" in tab.result_label.text()
+
+
+def test_support_level_condition_rejects_lower(win):
+    tab = win.support
+    tab.set_shot(imread(ROOT / "screenshots" / "support_select_no_voyov.png"))
+    tab.cb_player.setChecked(False)
+    tab.cb_level.setChecked(True)
+    tab.level.setValue(120)                # JetSet 的摩根只有 110
+    tab.test_match()
+    assert list(tab.match_result.values()) == [False, False]
 
 
 def test_support_mlb_and_class_saved(win, tmp_path):
-    win.support.mlb.setChecked(True)
+    win.support.cb_mlb.setChecked(True)
     win.support.class_tab.setCurrentIndex(win.support.class_tab.findData("caster"))
     assert win.save()
     p = Profile.load(tmp_path / "profiles" / "default")

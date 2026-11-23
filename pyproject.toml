@@ -1,7 +1,7 @@
 [project]
 name = "fgo-auto"
 version = "0.1.0"
-description = "Add your description here"
+description = "FGO（台服）自動周回工具：MuMu 模擬器、自動吃蘋果、選助戰、戰鬥腳本"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
